@@ -1,44 +1,62 @@
-# Agora Conversational AI — Custom LLM Recipe (Python)
+# Agora Conversational AI — Instructions Recipe (Python)
 
-The **custom-llm** recipe in the Agora Conversational AI recipes family. Bring your
-own LLM to Agora's voice pipeline: the agent's LLM stage is pointed at your own
-OpenAI-compatible `POST /chat/completions` endpoint instead of a managed model.
-STT (Deepgram) and TTS (MiniMax) stay Agora-managed.
+The **instructions** recipe in the Agora Conversational AI recipes family. It
+demonstrates how to configure the agent through system-prompt features, context
+injection, and live runtime updates — all using Agora's **managed OpenAI vendor**.
 
-This repo ships a **zero-key mock** LLM endpoint so you can run the full
-STT → custom LLM → TTS pipeline immediately, then replace the mock with your own
-model.
+This recipe is **not zero-key**: it requires an `OPENAI_API_KEY` because the LLM
+stage calls OpenAI through Agora's managed integration. There is no separate
+`llm/` service to run or expose.
+
+## What this recipe demonstrates
+
+- **`template_variables`** — inject `{{assistant_name}}` and `{{today}}` into the
+  system prompt at agent-start time.
+- **`REPLY_STYLE`** — set to `short` for terse one-sentence answers (low
+  `max_tokens`) or `normal` (default) for fuller responses.
+- **`POST /updateInstructions`** — swap the running agent's system prompt at any
+  time via Agora's update API without restarting the session.
+- **`AGENT_EXIT_MESSAGE`** — append a closing instruction so the agent delivers a
+  consistent goodbye line when the user ends the conversation.
 
 ## Prerequisites
 
 - [Python 3.8+](https://www.python.org/)
 - [Bun](https://bun.sh/)
-- [ngrok](https://ngrok.com/) (or any tunnel to expose localhost)
 - Agora App ID + App Certificate (the [Agora CLI](https://github.com/AgoraIO/cli) makes this easy)
+- An OpenAI API key (`OPENAI_API_KEY`)
 
 ## Run it
 
 ```bash
-# 1. Install + create both Python venvs
+# 1. Install dependencies
 bun run setup
 
 # 2. Add Agora credentials (CLI), or edit server/.env.local by hand
 agora login
-agora project use <your-project>          # select which project to use (you may have several)
-agora project env write server/.env.local # writes App ID/Certificate; keeps your CUSTOM_LLM_* lines
+agora project use <your-project>
+agora project env write server/.env.local
 
-# 3. Expose the custom LLM endpoint publicly (Agora cloud calls it directly)
-ngrok http 8001
+# 3. Add your OpenAI API key to server/.env.local
+#    OPENAI_API_KEY=sk-...
 
-# 4. Add the tunnel URL to server/.env.local (use whatever domain ngrok prints —
-#    today that is usually *.ngrok-free.dev)
-#    CUSTOM_LLM_URL=https://<your-tunnel>.ngrok-free.dev/chat/completions
-
-# 5. Run all three services
+# 4. Start the agent backend and web frontend
 bun run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) → **Start Conversation** → speak.
+
+## Live instruction swap (example)
+
+While a session is running, swap the agent's system prompt without restarting:
+
+```bash
+curl -X POST http://localhost:8000/updateInstructions \
+  -H "Content-Type: application/json" \
+  -d '{"agentId": "<agent_id_from_startAgent>", "instructions": "You are a pirate. Arr!"}'
+```
+
+The next agent turn will use the new prompt.
 
 ## Architecture
 
@@ -47,30 +65,29 @@ Browser (localhost:3000)
   │  fetch /api/*
   ▼
 Next.js  ──rewrite──▶  Agent backend  (server/, localhost:8000)
-                          │  starts agent session (CustomLLM vendor)
+                          │  starts agent session (managed OpenAI vendor)
                           ▼
                        Agora ConvoAI Cloud
-                          │  POST <CUSTOM_LLM_URL>   (Authorization: Bearer)
+                          │  Deepgram STT (managed)
+                          │  OpenAI LLM via OPENAI_API_KEY (managed)
+                          │  MiniMax TTS (managed)
                           ▼
-                       Custom LLM endpoint  (llm/, localhost:8001)
-                          ▲  public via ngrok tunnel
+                       RTM transcript / metrics → web UI
 ```
 
 The browser only ever calls Next `/api/*`, which rewrites to the agent backend.
-The agent backend owns Agora tokens and agent lifecycle. The **custom LLM
-endpoint** is separate because Agora cloud — not the browser — calls it, so it
-must be publicly reachable. See [ARCHITECTURE.md](./ARCHITECTURE.md).
+The agent backend owns Agora tokens and agent lifecycle. LLM calls go through
+Agora's managed OpenAI integration — no separate endpoint to expose. See
+[ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ## Project structure
 
 ```
-agent-recipes-python/
-├── server/   # Agent backend (:8000) — tokens + agent lifecycle, CustomLLM vendor
-│   ├── src/{server.py, agent.py}
-│   └── scripts/run_fake_server.py
-├── llm/      # Custom LLM endpoint (:8001) — OpenAI-compatible mock, no agora deps
-│   └── src/custom_llm_server.py
-├── web/      # Shared Next.js frontend (:3000)
+recipe-agent-instructions/
+├── server/   # Agent backend (:8000) — tokens, agent lifecycle, OpenAI vendor
+│   ├── src/{server.py, agent.py, instruction_config.py}
+│   └── tests/test_instruction_config.py
+├── web/      # Next.js frontend (:3000)
 └── package.json
 ```
 
@@ -81,44 +98,44 @@ Backend env file: [`server/.env.example`](server/.env.example).
 | Variable | Required | Default | Notes |
 | --- | :---: | :---: | --- |
 | `AGORA_APP_ID` | ✅ | — | Agora Console → Project → App ID |
-| `AGORA_APP_CERTIFICATE` | ✅ | — | Agora Console → Project → App Certificate (server only) |
-| `CUSTOM_LLM_URL` | ✅ | — | **Public** chat-completions URL of your `llm/` endpoint. Agora cloud calls it; cannot be `localhost`. |
-| `CUSTOM_LLM_API_KEY` | ✅ | `any-key-here` | Forwarded by Agora cloud as `Authorization: Bearer`. Required by the `CustomLLM` vendor. |
-| `CUSTOM_LLM_MODEL` |  | `mock-model` | Model name passed to your endpoint |
-| `AGENT_GREETING` |  | built-in | Optional opening line override |
-| `PORT` |  | `8000` | Agent backend port |
-| `CUSTOM_LLM_PORT` |  | `8001` | Port for the custom LLM endpoint — lives in **`llm/.env.local`**, not `server/`'s |
-| `AGENT_BACKEND_URL` (web deploy) | ✅ | — | Required in a deployed `web` app when proxying to the backend |
+| `AGORA_APP_CERTIFICATE` | ✅ | — | Agora Console → Project → App Certificate |
+| `OPENAI_API_KEY` | ✅ | — | Required — this recipe uses Agora's managed OpenAI vendor |
+| `OPENAI_MODEL` | | `gpt-4o-mini` | OpenAI model name |
+| `REPLY_STYLE` | | `normal` | `normal` or `short` (short → terse + low max_tokens) |
+| `ASSISTANT_NAME` | | `Ada` | Injected as `{{assistant_name}}` in the system prompt |
+| `AGENT_EXIT_MESSAGE` | | `Thanks for chatting — goodbye!` | Closing instruction appended to the system prompt |
+| `AGENT_GREETING` | | built-in | Optional opening line override |
+| `AGENT_BACKEND_URL` (web deploy) | ✅ | — | Required when deploying `web` separately |
+
+## Why not zero-key?
+
+The managed OpenAI vendor requires Agora to call OpenAI on your behalf, which
+means your `OPENAI_API_KEY` must be present in `server/.env.local`. Unlike the
+zero-key recipes (which use only Agora-provisioned credentials), this recipe adds
+one external credential. The payoff is direct access to OpenAI's model quality and
+`template_variables` / live-update features with no custom proxy.
 
 ## Commands
 
 ```bash
-bun run setup            # install web deps + create server/ and llm/ venvs
-bun run dev              # run llm (:8001) + backend (:8000) + web (:3000)
+bun run setup            # install web deps + create server/ venv
+bun run dev              # backend (:8000) + web (:3000)
 
 bun run doctor           # prerequisite check (no creds needed)
-bun run doctor:local     # + .env.local + credentials + CUSTOM_LLM_URL checks
+bun run doctor:local     # + .env.local + credentials check
 
 bun run verify           # web-only gate (no Agora creds needed)
-bun run verify:local     # full local gate: backend compile + smoke tests + web build
+bun run verify:local     # full local gate: backend compile + web build
 bun run clean            # remove venvs and build artifacts
 ```
-
-## Replacing the mock
-
-Edit `get_mock_response()` in [`llm/src/custom_llm_server.py`](llm/src/custom_llm_server.py).
-The endpoint must keep speaking the OpenAI streaming `/chat/completions` contract
-(see [`llm/README.md`](llm/README.md)). A production endpoint should also validate
-the `Authorization: Bearer` header.
 
 ## Troubleshooting
 
 | Problem | Fix |
 | --- | --- |
-| Agent starts but never speaks | `CUSTOM_LLM_URL` is not public or omits `/chat/completions`. Use your ngrok URL. |
-| `doctor:local` warns about localhost | Replace the local URL with your public tunnel URL. |
-| Local calls fail / hang under a global proxy (Clash, etc.) | Your proxy is routing loopback through itself. Configure it to send `127.0.0.1`, `localhost`, and RFC-1918 ranges DIRECT (don't disable the proxy entirely). |
-| `Missing llm/venv` during verify | Run `bun run setup` (creates both venvs). |
+| Agent starts but never responds | Check `OPENAI_API_KEY` is valid and the model name is correct. |
+| `doctor:local` fails on OPENAI_API_KEY | Add `OPENAI_API_KEY=sk-...` to `server/.env.local`. |
+| Local calls fail / hang under a proxy | Configure your proxy to route `127.0.0.1` and `localhost` DIRECT. |
 
 ## License
 
