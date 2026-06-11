@@ -48,7 +48,7 @@ derived from the base `agent-quickstart-python` template.
 - Do not put `PORT` in `server/.env.example` (it would clobber the random port
   that `verify:local:fastapi` injects via `load_dotenv(override=True)`).
 - Do not link to `docs/ai/` — that progressive-disclosure tree is not present yet.
-- Do not introduce "livekit" anywhere in this repo.
+- Do not reference the upstream example framework by name.
 
 ## Commands
 

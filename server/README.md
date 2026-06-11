@@ -1,15 +1,20 @@
-# Agora Agent Backend — Custom LLM Recipe
+# Agora Agent Backend — Instructions Recipe
 
 FastAPI service that owns Agora token generation and agent session lifecycle for
-the custom-llm recipe. It is the service the web client reaches through the
+the instructions recipe. It is the service the web client reaches through the
 Next.js `/api/*` rewrite proxy (port 8000).
 
-## What's different from the base quickstart
+## What this service does
 
-The LLM stage uses the SDK's `CustomLLM` vendor instead of a managed
-`OpenAI(model="gpt-4o-mini")`. It points the agent at your own OpenAI-compatible
-endpoint (the `llm/` server in this repo) via `CUSTOM_LLM_URL`. STT (Deepgram)
-and TTS (MiniMax) remain Agora-managed.
+- Generates Agora Token007 auth tokens for the browser client.
+- Starts and stops agent sessions via `agora_agent`.
+- Exposes `POST /updateInstructions` to swap the running agent's system prompt at
+  runtime without restarting the session, using Agora's update API
+  (`UpdateAgentsRequestProperties` + `UpdateAgentsRequestPropertiesLlm`).
+
+The LLM stage uses Agora's **managed `OpenAI` vendor** — set `OPENAI_API_KEY` and
+Agora calls OpenAI on your behalf. There is no separate `llm/` service and no
+custom endpoint to expose or tunnel.
 
 ## Run
 
@@ -27,22 +32,31 @@ python src/server.py
 
 `server/.env.example` is the template. Required:
 
-- `AGORA_APP_ID`, `AGORA_APP_CERTIFICATE` — Agora project credentials.
-- `CUSTOM_LLM_URL` — the **public** chat-completions URL of your `llm/` endpoint
-  (e.g. `https://<tunnel>/chat/completions`). Agora cloud calls this directly, so
-  it cannot be `localhost`.
-- `CUSTOM_LLM_API_KEY` — forwarded by Agora cloud as `Authorization: Bearer`.
-  Required by the `CustomLLM` vendor.
+- `AGORA_APP_ID` — Agora project App ID.
+- `AGORA_APP_CERTIFICATE` — Agora project App Certificate.
+- `OPENAI_API_KEY` — forwarded to Agora's managed OpenAI integration. This
+  recipe is **not zero-key**: a valid key is required.
 
-Optional: `CUSTOM_LLM_MODEL` (default `mock-model`), `AGENT_GREETING`, `PORT`
-(default `8000`).
+Optional:
+
+- `OPENAI_MODEL` — model name passed to the managed vendor (default `gpt-4o-mini`).
+- `REPLY_STYLE` — `normal` (default) or `short` (terse, low `max_tokens`).
+- `ASSISTANT_NAME` — injected as `{{assistant_name}}` in the system prompt
+  (default `Ada`).
+- `AGENT_EXIT_MESSAGE` — closing instruction appended to the system prompt.
+- `AGENT_GREETING` — optional opening line override.
+- `PORT` — HTTP listen port (default `8000`). Do not add this to
+  `.env.example` — it would clobber the random port injected by
+  `verify:local:fastapi`.
 
 ## API
 
-- `GET /get_config` — token + channel/UID config
-- `POST /startAgent` — start an agent session
-- `POST /stopAgent` — stop an agent session
+- `GET /get_config` — returns Agora token + channel/UID config for the browser.
+- `POST /startAgent` — starts an agent session; returns `agentId`.
+- `POST /stopAgent` — stops a running agent session.
+- `POST /updateInstructions` — swaps the live system prompt of a running session.
+  Body: `{"agentId": "<id>", "instructions": "<new system prompt>"}`.
 
-The repo-root `bun run verify:local:fastapi` exercises these routes through the
-Next proxy using a fake agent (`scripts/run_fake_server.py`), so no live Agora
-session is required.
+The repo-root `bun run verify:local:fastapi` exercises the start/stop/config
+routes through the Next proxy using a fake agent (`scripts/run_fake_server.py`),
+so no live Agora session is required for CI.
