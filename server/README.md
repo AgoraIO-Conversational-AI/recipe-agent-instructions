@@ -12,9 +12,10 @@ Next.js `/api/*` rewrite proxy (port 8000).
   runtime without restarting the session, using Agora's update API
   (`UpdateAgentsRequestProperties` + `UpdateAgentsRequestPropertiesLlm`).
 
-The LLM stage uses Agora's **managed `OpenAI` vendor** — set `OPENAI_API_KEY` and
-Agora calls OpenAI on your behalf. There is no separate `llm/` service and no
-custom endpoint to expose or tunnel.
+The LLM stage uses Agora's **managed `OpenAI` vendor** — keyless by default, the
+same model as Deepgram STT and MiniMax TTS. `OPENAI_API_KEY` is optional; set it
+only if your Agora account requires a bring-your-own key. There is no separate
+`llm/` service and no custom endpoint to expose or tunnel.
 
 ## Run
 
@@ -34,8 +35,8 @@ python src/server.py
 
 - `AGORA_APP_ID` — Agora project App ID.
 - `AGORA_APP_CERTIFICATE` — Agora project App Certificate.
-- `OPENAI_API_KEY` — forwarded to Agora's managed OpenAI integration. This
-  recipe is **not zero-key**: a valid key is required.
+- `OPENAI_API_KEY` — optional. Agora manages the OpenAI key by default (keyless).
+  Set it only if your Agora account requires a bring-your-own key.
 
 Optional:
 

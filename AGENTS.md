@@ -15,8 +15,9 @@ derived from the base `agent-quickstart-python` template.
   - `server/tests/` — pytest unit tests for `instruction_config`.
 - **`web/`** — Next.js 16 / React 19 / TypeScript frontend (:3000).
 - Auth: Token007 from `AGORA_APP_ID` + `AGORA_APP_CERTIFICATE`.
-- **Not zero-key**: `OPENAI_API_KEY` is required (managed by Agora cloud, not
-  called locally).
+- **Zero-key**: OpenAI is Agora-managed (keyless, like Deepgram/MiniMax).
+  `OPENAI_API_KEY` is optional — set it only if your Agora account requires a
+  bring-your-own key.
 
 ## Routing / ownership
 

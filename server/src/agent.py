@@ -48,6 +48,8 @@ class Agent:
             "Hi! I'm your configurable assistant. Ask me anything.",
         )
 
+        # OpenAI is Agora-managed (keyless), like Deepgram/MiniMax. OPENAI_API_KEY is optional —
+        # set it only if your Agora account requires a bring-your-own key.
         self.openai_api_key = os.getenv("OPENAI_API_KEY")
         self.openai_model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         self.reply_style = os.getenv("REPLY_STYLE", "normal")
@@ -56,9 +58,6 @@ class Agent:
 
         if not self.app_id or not self.app_certificate:
             raise ValueError("AGORA_APP_ID and AGORA_APP_CERTIFICATE are required")
-
-        if not self.openai_api_key:
-            raise ValueError("OPENAI_API_KEY is required (this recipe uses a managed OpenAI LLM)")
 
         self.client = AsyncAgora(
             area=Area.US,

@@ -4,8 +4,9 @@ The **instructions** recipe in the Agora Conversational AI recipes family. It
 demonstrates how to configure the agent through system-prompt features, context
 injection, and live runtime updates — all using Agora's **managed OpenAI vendor**.
 
-This recipe is **not zero-key**: it requires an `OPENAI_API_KEY` because the LLM
-stage calls OpenAI through Agora's managed integration. There is no separate
+This recipe is **zero-key**: it uses Agora's **managed OpenAI vendor** (keyless,
+just like Deepgram STT and MiniMax TTS). `OPENAI_API_KEY` is **optional** — set
+it only if your Agora account requires a bring-your-own key. There is no separate
 `llm/` service to run or expose.
 
 ## What this recipe demonstrates
@@ -24,7 +25,6 @@ stage calls OpenAI through Agora's managed integration. There is no separate
 - [Python 3.8+](https://www.python.org/)
 - [Bun](https://bun.sh/)
 - Agora App ID + App Certificate (the [Agora CLI](https://github.com/AgoraIO/cli) makes this easy)
-- An OpenAI API key (`OPENAI_API_KEY`)
 
 ## Run it
 
@@ -37,10 +37,7 @@ agora login
 agora project use <your-project>
 agora project env write server/.env.local
 
-# 3. Add your OpenAI API key to server/.env.local
-#    OPENAI_API_KEY=sk-...
-
-# 4. Start the agent backend and web frontend
+# 3. Start the agent backend and web frontend
 bun run dev
 ```
 
@@ -69,7 +66,7 @@ Next.js  ──rewrite──▶  Agent backend  (server/, localhost:8000)
                           ▼
                        Agora ConvoAI Cloud
                           │  Deepgram STT (managed)
-                          │  OpenAI LLM via OPENAI_API_KEY (managed)
+                          │  OpenAI LLM (Agora-managed, keyless)
                           │  MiniMax TTS (managed)
                           ▼
                        RTM transcript / metrics → web UI
@@ -99,7 +96,7 @@ Backend env file: [`server/.env.example`](server/.env.example).
 | --- | :---: | :---: | --- |
 | `AGORA_APP_ID` | ✅ | — | Agora Console → Project → App ID |
 | `AGORA_APP_CERTIFICATE` | ✅ | — | Agora Console → Project → App Certificate |
-| `OPENAI_API_KEY` | ✅ | — | Required — this recipe uses Agora's managed OpenAI vendor |
+| `OPENAI_API_KEY` | | — | Optional — Agora manages the OpenAI key by default; set only for bring-your-own key |
 | `OPENAI_MODEL` | | `gpt-4o-mini` | OpenAI model name |
 | `REPLY_STYLE` | | `normal` | `normal` or `short` (short → terse + low max_tokens) |
 | `ASSISTANT_NAME` | | `Ada` | Injected as `{{assistant_name}}` in the system prompt |
@@ -107,13 +104,13 @@ Backend env file: [`server/.env.example`](server/.env.example).
 | `AGENT_GREETING` | | built-in | Optional opening line override |
 | `AGENT_BACKEND_URL` (web deploy) | ✅ | — | Required when deploying `web` separately |
 
-## Why not zero-key?
+## Zero-key design
 
-The managed OpenAI vendor requires Agora to call OpenAI on your behalf, which
-means your `OPENAI_API_KEY` must be present in `server/.env.local`. Unlike the
-zero-key recipes (which use only Agora-provisioned credentials), this recipe adds
-one external credential. The payoff is direct access to OpenAI's model quality and
-`template_variables` / live-update features with no custom proxy.
+This recipe uses Agora's **managed OpenAI vendor** — the same keyless model used
+for Deepgram STT and MiniMax TTS. Agora provisions the OpenAI access on your
+behalf; you do not need to supply `OPENAI_API_KEY` to run the recipe. If your
+Agora account requires a bring-your-own OpenAI key, set `OPENAI_API_KEY` in
+`server/.env.local` and it will be forwarded automatically.
 
 ## Commands
 
@@ -133,8 +130,7 @@ bun run clean            # remove venvs and build artifacts
 
 | Problem | Fix |
 | --- | --- |
-| Agent starts but never responds | Check `OPENAI_API_KEY` is valid and the model name is correct. |
-| `doctor:local` fails on OPENAI_API_KEY | Add `OPENAI_API_KEY=sk-...` to `server/.env.local`. |
+| Agent starts but never responds | Check `OPENAI_MODEL` is a valid model name. If your Agora account requires a key, ensure `OPENAI_API_KEY` is set in `server/.env.local`. |
 | Local calls fail / hang under a proxy | Configure your proxy to route `127.0.0.1` and `localhost` DIRECT. |
 
 ## License
