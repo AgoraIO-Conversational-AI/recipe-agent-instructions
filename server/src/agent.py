@@ -210,6 +210,10 @@ class Agent:
 
     async def update_instructions(self, agent_id: str, instructions: str) -> None:
         """Swap the running agent's system prompt via the Agora update API."""
+        if not agent_id or not str(agent_id).strip():
+            raise ValueError("agent_id is required and cannot be empty")
+        if not instructions or not str(instructions).strip():
+            raise ValueError("instructions is required and cannot be empty")
         session = self._sessions.get(agent_id)
         if not session:
             raise ValueError(f"No active session for agent_id={agent_id}")

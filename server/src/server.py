@@ -200,7 +200,7 @@ async def stop_agent(request: StopAgentRequest):
 async def update_instructions(request: UpdateInstructionsRequest):
     """Swap a running agent's system prompt (Agora update API)."""
     if agent is None:
-        raise HTTPException(status_code=500, detail="Service not properly configured.")
+        raise HTTPException(status_code=500, detail="Service not properly configured. Please check environment variables.")
     try:
         await agent.update_instructions(request.agentId, request.instructions)
         return {"code": 0, "msg": "success"}
