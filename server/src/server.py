@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
-Agora Agent & Token Service — Custom LLM Recipe
+Agora Agent & Token Service — Instructions Recipe
 
 HTTP APIs:
-- GET  /get_config     -> Generate connection config
-- POST /startAgent     -> Start agent with Custom LLM
-- POST /stopAgent      -> Stop agent
+- GET  /get_config            -> Generate connection config
+- POST /startAgent            -> Start agent with managed OpenAI vendor
+- POST /stopAgent             -> Stop agent
+- POST /updateInstructions    -> Swap the running agent's system prompt
 """
 import logging
 import os
@@ -59,9 +60,9 @@ except ValueError as e:
 
 # FastAPI application
 app = FastAPI(
-    title="Agora Custom LLM Recipe Service",
+    title="Agora Instructions Recipe Service",
     version="1.0.0",
-    description="Agora Conversational AI with Custom LLM integration",
+    description="Agora Conversational AI with managed OpenAI vendor and live instruction updates",
 )
 
 app.add_middleware(
@@ -89,9 +90,15 @@ class StopAgentRequest(BaseModel):
     agentId: str
 
 
+class UpdateInstructionsRequest(BaseModel):
+    """Request body for POST /updateInstructions"""
+    agentId: str
+    instructions: str
+
+
 # API endpoints
 def _generate_channel_name() -> str:
-    return f"custom-llm-{int(time.time())}-{random.randint(1000, 9999)}"
+    return f"instructions-{int(time.time())}-{random.randint(1000, 9999)}"
 
 
 @router.get("/get_config")
@@ -142,7 +149,7 @@ async def get_config(
 
 @router.post("/startAgent")
 async def start_agent(request: StartAgentRequest):
-    """Start agent with Custom LLM in a channel"""
+    """Start agent with managed OpenAI vendor in a channel"""
     if agent is None:
         raise HTTPException(
             status_code=500,
@@ -186,6 +193,19 @@ async def stop_agent(request: StopAgentRequest):
         return {"code": 0, "msg": "success"}
     except Exception as e:
         _log_route_error("/stopAgent", e, agentId=request.agentId)
+        raise _to_http_error(e)
+
+
+@router.post("/updateInstructions")
+async def update_instructions(request: UpdateInstructionsRequest):
+    """Swap a running agent's system prompt (Agora update API)."""
+    if agent is None:
+        raise HTTPException(status_code=500, detail="Service not properly configured.")
+    try:
+        await agent.update_instructions(request.agentId, request.instructions)
+        return {"code": 0, "msg": "success"}
+    except Exception as e:
+        _log_route_error("/updateInstructions", e, agentId=request.agentId)
         raise _to_http_error(e)
 
 
