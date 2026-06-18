@@ -8,7 +8,7 @@ derived from the base `agent-quickstart-python` template.
 
 - **`server/`** — Python FastAPI agent backend (:8000). Owns Agora token
   generation and agent session lifecycle. Uses Agora's managed `OpenAI` vendor.
-  SDK: `agora-agents>=2.0.0` (`import agora_agent`).
+  SDK: `agora-agents>=2.3.0` (`import agora_agent`).
   - `server/src/instruction_config.py` — pure builders for system prompts,
     template variables, max_tokens, and update payloads (no SDK import, fully
     unit-testable).
